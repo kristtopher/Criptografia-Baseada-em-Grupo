@@ -3,12 +3,14 @@
 
 #include "iot-key-agreement-core_global.h"
 #include "mqttserver.h"
+#include "device.h"
 
 #include <QObject>
 #include <QMap>
 #include <QQueue>
 #include <QVector>
 #include <QElapsedTimer>
+#include<boost/multiprecision/number.hpp>
 #include <boost/multiprecision/gmp.hpp>
 
 class IOTKEYAGREEMENTCORE_EXPORT Trevor: public QObject
@@ -27,11 +29,7 @@ public:
 
     void disconnectFromHost();
 
-    void generateSessionParameters();
-
     void setNewSession();
-
-    std::vector<int64_t> segmented_sieve(int64_t limit);
 
     void setHost(const QString &value);
 
@@ -87,10 +85,11 @@ private:
     double time_counter = 0, max_time = 0;
     QVector<bool> user_sess_computed;
     QMap<QString, boost::multiprecision::mpz_int> params;
+    QMap<QString, QString> users_keys;
     QQueue<QString> users_queue;
+    boost::multiprecision::mpz_int group_key;
 
-    void pattern_one(std::vector<int64_t> &pm, std::vector<int64_t> &pn, const std::vector<int64_t> &primes);
-    void pattern_two(std::vector<int64_t> &pm, std::vector<int64_t> &pn, const std::vector<int64_t> &primes);
+
     void connect_user(const QString& user);
 };
 

@@ -35,26 +35,23 @@ private:
     const QString DISCONNECT_USER = "dcc075/users/disconnect";
     const QString NUMBER_USERS = "dcc075/users/number_users";
     const QString COMMAND_USER = "dcc075/users/command";
-    QString PARAM_ALPHA = "dcc075/params/alpha";
-    QString PARAM_BETA = "dcc075/params/beta";
-    QString PARAM_Y = "dcc075/params/y_param";
-    QString PARAM_DELTA = "dcc075/params/delta";
-    QString PARAM_GAMMA = "dcc075/params/gamma";
-    QString PARAM_TOTIENTDELTA = "dcc075/params/totient_delta";
     const QString SESSION_KEY = "dcc075/sessionkey";
+    QString PARAM_SESSIONKEY = "ERIKA/params/sessionkey";
+
 
 private:
     MQTTServer *m_mqtt;
     QString id_mqtt;
     QVector<QString> users;
-    std::vector<boost::multiprecision::mpz_int> gammas;
-    boost::multiprecision::mpz_int session_key, alpha, beta, xa, xb;
-    boost::multiprecision::mpz_int y, gamma, delta, totient_delta;
+    boost::multiprecision::mpz_int session_key, group_key;
     size_t n_users = 0, server_id = 0, n_cobaias = 0;
-    bool gamma_computed = false, session_key_computed = false, on_experimentation = false;
+    bool session_key_computed = false, on_experimentation = false;
     bool accepted = false;
     QElapsedTimer timer;
     int total_time = 0;
+
+public:
+    static size_t n_devices;
 };
 
 #endif // DEVICE_H

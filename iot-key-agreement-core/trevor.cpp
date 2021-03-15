@@ -25,6 +25,7 @@ const QString SESSION_KEY = "ERIKA/sessionkey";
 
 Trevor::Trevor(const QString host, const quint16 port, const QString username, const QString password)
 {
+    Device::n_devices = 0;
     this->init(host, port, username, password);
 }
 
@@ -90,15 +91,28 @@ void Trevor::connect_user(const QString& user)
         emit sessionParamsComputed(params);
     }else if(n_users >= 2){
         // misturar chaves e enviar para dispositivos (broadcast)
+        mpz_int mixed_session_key = mpz_int(users_keys[*(users_keys.keyBegin())].toStdString());
+        int i = 0;
+        for(auto key_it = users_keys.keyBegin(); key_it != users_keys.keyEnd(); key_it++){
+            if(i == 0){
+                i++;
+                continue;
+            }
+            QString str_session_key = users_keys[*key_it];
+            auto session_key = mpz_int(str_session_key.toStdString());
 
+            mixed_session_key ^= session_key;
+        }
+        group_key = mixed_session_key;
+        m_mqtt->publish(PARAM_SESSIONKEY, QString::fromStdString(mixed_session_key.str()), 2);
         for(int i = 0; i < users_timer.size(); i++){
             users_timer[i].restart();
         }
     }
 
-    if(sess_params_computed){
-      // ver se tem algo para fazer aqui
-    }
+//    if(sess_params_computed){
+//      // ver se tem algo para fazer aqui
+//    }
 }
 
 void Trevor::onMessageReceived(const QByteArray &message, const QMqttTopicName &topic)
@@ -125,7 +139,7 @@ void Trevor::onMessageReceived(const QByteArray &message, const QMqttTopicName &
                     break;
                 }
             }
-            if(n_users == 1 || !not_enter){
+            if(users_keys.contains(message_content) && (n_users == 1 || !not_enter)){
                 connect_user(message_content);
             }else users_queue.enqueue(message_content);
         }else {
@@ -168,9 +182,17 @@ void Trevor::onMessageReceived(const QByteArray &message, const QMqttTopicName &
             }
         }
 
+        users_keys[user] = session_key;
+
         if(!users_queue.isEmpty() && i == user_sess_computed.size()){
-            QString next_user = users_queue.dequeue();
-            connect_user(next_user);
+            while(!users_queue.empty()){
+                QString next_user = users_queue.dequeue();
+                if(users_keys.contains(next_user)){
+                    connect_user(next_user);
+                }else{
+                    users_queue.enqueue(next_user);
+                }
+            }
             for(auto _user: users){
                 if(user == _user) continue;
                // m_mqtt->publish(COMMAND_USER, _user + QString("_sendgamma"), 2);
@@ -189,6 +211,12 @@ void Trevor::onMessageReceived(const QByteArray &message, const QMqttTopicName &
             qWarning() << "\n" << message_content << "is not an user.\n";
             return;
         }
+
+        mpz_int user_session_key = mpz_int(users_keys[message_content].toStdString());
+        users_keys.remove(message_content);
+        group_key ^= user_session_key;
+        m_mqtt->publish(PARAM_SESSIONKEY, QString::fromStdString(group_key.str()), 2);
+
         std::remove_if(users.begin(), users.end(), [&message_content](const QString user){
             return (user == message_content);
         });
