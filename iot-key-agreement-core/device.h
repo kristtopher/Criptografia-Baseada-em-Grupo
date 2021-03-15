@@ -19,7 +19,7 @@ public:
 
 private:
     int8_t * read_ECG(int node);
-    boost::multiprecision::mpz_int compute_session_key_ERIKA();
+    boost::multiprecision::mpz_int compute_session_key_ERIKA(int8_t *myEcg);
 
     std::string generate_random_id(std::string &str, size_t len);
 

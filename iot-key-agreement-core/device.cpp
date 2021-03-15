@@ -94,7 +94,7 @@ int8_t * read_ECG(int node){
     return myEcg;
 }
 
-boost::multiprecision::mpz_int compute_session_key_ERIKA(int8_t *myEcg){
+boost::multiprecision::mpz_int Device::compute_session_key_ERIKA(int8_t *myEcg){
     mpz_int result = 0;
     float vReal[samples];
     float vImag[samples];
@@ -211,7 +211,7 @@ void Device::onMessageReceived(const QByteArray &message, const QMqttTopicName &
         users.erase(it);
         gammas.erase(gammas.begin()+i);
         n_users--;
-        if(n_users > 1 && n_users == gammas.size()) compute_session_key();
+        //if(n_users > 1 && n_users == gammas.size()) compute_session_key();
         qDebug() << QString("[") + id_mqtt + QString("]: ") + message_content << " disconnected.\n";
     }
 
@@ -230,7 +230,7 @@ void Device::onMessageReceived(const QByteArray &message, const QMqttTopicName &
         }
 
         if(y > 0 && alpha > 0 && beta > 0 && delta > 0 && totient_delta > 0){
-            compute_gamma();
+            //compute_gamma();
             std::string msg_gamma(gamma.str());
             msg_gamma = id_mqtt.toStdString() + std::string("_") + msg_gamma;
             m_mqtt->publish(PARAM_GAMMA, QString::fromStdString(msg_gamma), 2);
@@ -257,7 +257,7 @@ void Device::onMessageReceived(const QByteArray &message, const QMqttTopicName &
         }
         if(i == users.size() || users.size() == 0) users.push_back(user_id);
 
-        if(n_users > 1 && n_users == gammas.size() && compute) compute_session_key();
+        if(n_users > 1 && n_users == gammas.size() && compute) compute_session_key_ERIKA();
         total_time += timer.elapsed();
     }
     if(n_users == n_cobaias && session_key_computed && on_experimentation){
