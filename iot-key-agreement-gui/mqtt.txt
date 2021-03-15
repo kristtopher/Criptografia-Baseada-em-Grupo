@@ -1,0 +1,4 @@
+broker.hivemq.com
+1883
+
+

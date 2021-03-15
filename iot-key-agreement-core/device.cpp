@@ -1,0 +1,297 @@
+#include "device.h"
+#include <boost/random.hpp>
+#include <boost/multiprecision/cpp_dec_float.hpp>
+#include <random>
+#include <string>
+#include "FFT.h"
+#include "FFT.cpp"
+
+using namespace boost::multiprecision;
+using namespace boost::random;
+
+Device::Device(const QString &host, const int port, const QString &user, const QString &password)
+{
+    if(!user.isEmpty()){
+        m_mqtt = new MQTTServer(host, port, user, password);
+    }else {
+        m_mqtt = new MQTTServer(host, port);
+    }
+
+    std::string id(10, 1);
+    generate_random_id(id, 10);
+    id_mqtt = QString::fromStdString(id);
+    qDebug() << "MQTT id: " << id_mqtt << "\n";
+    m_mqtt->setIdMqtt(id_mqtt);
+    m_mqtt->connectToBroker();
+
+    QObject::connect(m_mqtt, &MQTTServer::messageReceived, this, &Device::onMessageReceived);
+    QObject::connect(m_mqtt, &MQTTServer::connected, this, &Device::subscribeToTopics);
+}
+
+Device::~Device()
+{
+    m_mqtt->publish(DISCONNECT_USER, id_mqtt, 2);
+    m_mqtt->disconnectFromBroker();
+}
+
+//ERIKA
+
+__uint32_t linearQ(__uint32_t *window){
+    __uint32_t word;
+    for (uint16_t k = 0; k < 64; k = k + 2) {
+        if ((window[k] >> 8) & 0x1) {
+            word = (word << 1);
+            word = word | 0x1;
+        } else word = (word << 1);
+    }
+    return word;
+}
+
+void byteToBin(byte n){
+    unsigned i;
+    for (i = 1 << 7; i > 0; i = i / 2)
+        (n & i)? printf("1"): printf("0");
+}
+
+void uint32ToBin(__uint32_t n){
+    unsigned i;
+    for (i = 1 << 31; i > 0; i = i / 2)
+        (n & i)? printf("1"): printf("0");
+    printf("\n");
+}
+
+__uint32_t floatToUint32(float f){
+    int length = sizeof(float);
+    int lenB = length;
+    byte bytes[length];
+    __uint32_t word;
+    for(int i = 0; i < length; i++)
+        bytes[--lenB] = ((byte *) &f)[i];
+    for (int j = 0; j < length; ++j)
+        word = (word << 8) | bytes[j];
+    return word;
+}
+
+int8_t * read_ECG(int node){
+    int8_t myEcg[500];
+    FILE *fpa;
+    char buff[255];
+    std::string filename = "key_p" + std::to_string(node) + "r1.txt";
+    //        string outfilename = "../key_p" + to_string(n) + "r1.txt";
+    //        string filename = "../p1r" + to_string(n) + ".txt";
+    //        string outfilename = "../key_p1r" + to_string(n) + ".txt";
+    //        string filename = "../p9r1.txt";
+    //        string outfilename = "../N_key_p9r1.txt";
+
+    //fpa = fopen(filename, "r");
+    fpa = fopen("key_p1r1.txt", "r");
+    for (int m = 0; m < 650; ++m) {
+        fgets(buff, 255, (FILE *) fpa);
+        if (m >= 150)
+            myEcg[m-150] = std::stoi(buff);
+    }
+    fclose(fpa);
+    return myEcg;
+}
+
+boost::multiprecision::mpz_int compute_session_key_ERIKA(int8_t *myEcg){
+    mpz_int result = 0;
+    float vReal[samples];
+    float vImag[samples];
+    int8_t key[16];
+    int8_t pkey[16];
+    //int8_t myEcg[] = {-2, -3, -2, -2, -2, 0, -1, -2, 0, 0, 1, 2, 0, 1, 2, 4, 3, 4, 5, 4, 2, 2, 1, 0, 1, 0, -1, -1, -2, -1, -2, 0, -2, -2, 0, 0, -2, -4, -2, -2, -2, -2, -1, -2, -3, -2, -2, -2, -2, 19, -8, -2, -2, -2, -2, 0, -2, -2, -2, -2, -2, -2, -3, -2, -3, -1, -3, -2, -4, -5, -4, -3, -2, -4, 0, 11, 26, 34, 23, 8, 0, 1, 0, 0, -2, -2, -3, -5, -2, -4, -5, -3, -2, -3, -2, -3, -2, -2, -1, 0, -2, -1, 0, 0, -1, 0, 0, 2, 2, 2, 3, 2, 4, 2, 3, 2, 1, 1, 0, 0, 0, -1, -2, -1, -3, -2, -2, -2, -2, -1, -2, -1, -2, -4, -2, -2, 0, -2, -2, -4, -3, -2, -3, 17, -9, -2, -1, -3, -2, -3, -1, -2, -3, -2, -2, -3, -4, -2, -4, -2, -3, -5, -4, -4, -5, -4, -4, -2, -2, 11, 24, 33, 24, 8, -2, -3, 1, -2, -1, -2, -4, -3, -5, -3, -4, -4, -2, -3, -2, -3, -2, -1, -2, -2, -2, -1, 0, 0, 1, 0, 0, 2, 1, 3, 2, 4, 4, 3, 2, 4, 1, 2, 0, -1, 0, 0, -2, -2, -1, -2, -3, -2, -2, 0, -2, -2, -2, -2, -2, -3, -2, -2, -2, -3, -2, -2, -2, 22, -11, -3, -2, -3, -2, -2, -1, -2, -3, -2, -3, -2, -3, -2, -3, -2, -2, -4, -5, -3, -4, -3, -5, -2, -3, 8, 21, 32, 33, 10, 0, -2, 1, 0, -2, -4, -2, -1, -4, -5, -2, -3, -3, -2, -2, -2, -1, -2, 0, -2, 0, -1, 0, 0, 0, 1, 1, 1, 2, 3, 4, 3, 4, 5, 4, 4, 2, 2, 0, 0, 0, 0, 0, -2, -1, -2, -2, -3, -1, -2, -1, -2, -3, 0, -1, -2, -2, -1, -2, -3, -2, -2, -2, 19, -9, -2, -2, -1, -2, -1, -2, -2, 0, -2, -1, 0, -4, -2, -1, -2, -2, -3, -2, -3, -3, -2, -4, -3, -2, 4, 17, 31, 35, 19, 6, 2, 0, 0, 0, -2, -2, -2, -3, -2, -2, -3, -2, -2, -1, -2, -2, -1, 0, -2, 0, 0, 0, 0, 0, 0, 2, 2, 2, 3, 3, 3, 4, 4, 5, 4, 2, 3, 2, 0, 0, 0, -1, 0, 0, -1, -2, 0, -1, 0, -1, -1, 0, -2, -1, 0, -1, -1, -1, -1, 0, 0, -3, -2, 13, -5, -3, -2, -2, 0, 0, -1, 0, -1, 0, -2, -1, -2, 0, -2, 0, -2, -2, -4, -4, -3, -2, -2, -1, 0, 13, 28, 37, 25, 11, 2, 0, 1, -1, -2, -2, -3, -4, -2, -2, -3, -2, -2, -3, -2, -2, -2, 0, -1, 0, -1, 0, 0, 0, 0, 1, 1, 2, 1, 3, 3, 3, 4, 4, 4, 4, 2, 1, 0, 0, 0, -1, -2, -2, -1, -2, -2, -2, -1, -2, -1, -2, -1, -1, -2, -2, -1, -2, -2, -2, -2, -2, -2, 17, -8, -2, -3, -1, -2, 0, -1, 0, -3, -2, -1, -2, -2, -1, -2, -2, -1, -4, -4, -5, -3, -4, -2, -4, -1, 9, 21, 34, 35, 10, 0, -1, 0, -1, -2, -2, -2, -4, -5, -3, -2, -2, -2, -3, -2, -2, -1, -1, 0, -2, 0, 0, 0, 0, 1, 0, 2, 3, 2, 2, 2, 4, 3, 4, 3, 4, 2, 1, 2, 0, -1, 0, -1, -2, -2, -1, 0, -2, 0, -2, -3, -2, -1, -2, -2, -2, -1, -2, -2, -2, -2, -3, -2, 17, -11, -2, -1, -2, 0, -2, -1, 0, -2, -1, -2, -1, -2, -2, -3, -2, -2, -2, -3, -3, -4, -5, -4, -5, -1, 6, 20, 32, 33, 13, 1, -2, 0, -1, -2};
+
+    __uint32_t features[samples / 2];
+    __uint32_t words = 0;
+    int d = 0;
+    FFT _FFT = FFT();
+    for (uint16_t i = 0; i < 4; ++i) {
+        d = 0;
+        for (uint16_t j = 0; j < samples; j++)
+            vReal[j] = vImag[j] = 0.0;//Imaginary part must be zeroed in case of looping to avoid wrong calculations and overflows
+        for (int j = 0; j < 125; j++)
+            vReal[j] = myEcg[j + (i * 125)];/* Build data with positive and negative values*/
+        for (int j = 0; j < samples / 2; j++) features[j] = 0;
+
+        _FFT.Windowing(vReal, samples);  /* Weigh data */
+        _FFT.Compute(vReal, vImag, samples); /* Compute FFT */
+        //_FFT.ComplexToMagnitude(vReal, vImag, samples); /* Compute magnitudes */
+
+        for (int k = 0; k < 64; ++k) features[k] = floatToUint32(vReal[k]);
+
+        words = linearQ(features);
+        //words = exponentialQ(features);
+        uint32ToBin(words);
+        for (int l = 3; l >= 0; l--) {
+            key[l + (i * 4)] = uint8_t((words >> d) & 0xff);
+            d += 8;
+        }
+    }
+
+    words = 0;
+
+    for (int k = 0; k < 16; ++k) {
+        if(k<4) {
+            pkey[k] = key[12+k];
+        } else
+            pkey[k] = key[k-4];
+    }
+
+    for (int g = 0; g < 16; g++) {
+        key[g] = key[g] ^ pkey[g];
+        result = result << 8;
+        result = result && key[g];
+    }
+
+    //    printf("key: \n");
+    //    for (int l = 0; l < 16; ++l) {
+    //        byteToBin(key[l]);
+    //        printf("\n");
+    //    }
+
+
+    //cpp_dec_float_50 bits = boost::multiprecision::log2(session_key.convert_to<cpp_dec_float_50>());
+    //qDebug() << "number of bits: " << QString::fromStdString(bits.convert_to<mpz_int>().str()) << "\n";
+    //m_mqtt->publish(SESSION_KEY, this->id_mqtt + QString("_") + QString::fromStdString(session_key.str()), 2);
+    //session_key_computed = true;
+    return result;
+}
+
+//ERIKA
+
+
+std::string Device::generate_random_id(std::string &str, size_t length)
+{
+    auto randchar = []() -> char{
+        const char charset[] =
+                "0123456789"
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "abcdefghijklmnopqrstuvwxyz";
+        const size_t max_index = (sizeof(charset) - 1);
+        return charset[ rand() % max_index ];
+    };
+    std::generate_n(str.begin(), length, randchar);
+    return str;
+}
+
+void Device::onMessageReceived(const QByteArray &message, const QMqttTopicName &topic)
+{
+    QString topic_name = topic.name();
+    timer.start();
+    QString message_content = QString::fromUtf8(message.data());
+    total_time += timer.elapsed();
+
+    if(topic_name == COMMAND_USER){
+        QStringList pieces = message_content.split('_');
+        if(pieces[0] != id_mqtt) return;
+        if(pieces[1] == QString("accepted")){
+            accepted = true;
+        }
+        if(pieces[1] == QString("sendgamma")){
+            if(gamma_computed) m_mqtt->publish(PARAM_GAMMA, id_mqtt + QString("_") + QString::fromStdString(gamma.str()), 2);
+        }
+    }
+
+    if(accepted) qDebug() << id_mqtt << " " << message << " " << topic;
+
+    if(topic_name == NUMBER_USERS){
+        n_users = message_content.toInt();
+        timer.start();
+        if(gamma_computed) m_mqtt->publish(PARAM_GAMMA, id_mqtt + QString("_") + QString::fromStdString(gamma.str()), 2);
+        total_time += timer.elapsed();
+        if(server_id == 0) server_id = n_users;
+    }
+    if(topic_name == DISCONNECT_USER){
+        auto it = users.begin();
+        size_t i;
+        for(i = 0; it != users.end(); it++, i++){
+            if((*it) == message_content) break;
+        }
+        users.erase(it);
+        gammas.erase(gammas.begin()+i);
+        n_users--;
+        if(n_users > 1 && n_users == gammas.size()) compute_session_key();
+        qDebug() << QString("[") + id_mqtt + QString("]: ") + message_content << " disconnected.\n";
+    }
+
+    if(!gamma_computed){
+        total_time += timer.elapsed();
+        if(y == 0 && topic_name == PARAM_Y){
+            y = mpz_int(message_content.toStdString());
+        }else if(alpha == 0 && topic_name == PARAM_ALPHA){
+            alpha = mpz_int(message_content.toStdString());
+        }else if(beta == 0 && topic_name == PARAM_BETA){
+            beta = mpz_int(message_content.toStdString());
+        }else if(delta == 0 && topic_name == PARAM_DELTA){
+            delta = mpz_int(message_content.toStdString());
+        }else if(totient_delta == 0 && topic_name == PARAM_TOTIENTDELTA){
+            totient_delta = mpz_int(message_content.toStdString());
+        }
+
+        if(y > 0 && alpha > 0 && beta > 0 && delta > 0 && totient_delta > 0){
+            compute_gamma();
+            std::string msg_gamma(gamma.str());
+            msg_gamma = id_mqtt.toStdString() + std::string("_") + msg_gamma;
+            m_mqtt->publish(PARAM_GAMMA, QString::fromStdString(msg_gamma), 2);
+        }
+        total_time += timer.elapsed();
+    }
+    if(topic_name == PARAM_GAMMA && accepted){
+        timer.start();
+        QStringList pieces = message_content.split('_');
+        bool compute = true;
+        QString user_id = pieces[0], user_gamma = pieces[1];
+        int i;
+        for(i = 0; i < users.size(); i++){
+            if(users[i] == user_id){
+                compute = false;
+                break;
+            }
+        }
+
+        if(i < users.size()){
+            gammas[i].assign(user_gamma.toStdString());
+        }else{
+            gammas.push_back(mpz_int(user_gamma.toStdString()));
+        }
+        if(i == users.size() || users.size() == 0) users.push_back(user_id);
+
+        if(n_users > 1 && n_users == gammas.size() && compute) compute_session_key();
+        total_time += timer.elapsed();
+    }
+    if(n_users == n_cobaias && session_key_computed && on_experimentation){
+        emit emitTotalTime(total_time);
+    }
+}
+
+void Device::subscribeToTopics()
+{
+    PARAM_Y += QString("_")+id_mqtt;
+    PARAM_ALPHA += QString("_")+id_mqtt;
+    PARAM_BETA += QString("_")+id_mqtt;
+    PARAM_DELTA += QString("_")+id_mqtt;
+    PARAM_TOTIENTDELTA += QString("_")+id_mqtt;
+
+    m_mqtt->subscribe(NUMBER_USERS, 2);
+    m_mqtt->subscribe(COMMAND_USER, 2);
+    m_mqtt->subscribe(PARAM_Y, 2);
+    m_mqtt->subscribe(PARAM_ALPHA, 2);
+    m_mqtt->subscribe(PARAM_BETA, 2);
+    m_mqtt->subscribe(PARAM_DELTA, 2);
+    m_mqtt->subscribe(PARAM_TOTIENTDELTA, 2);
+    m_mqtt->subscribe(PARAM_GAMMA, 2);
+    m_mqtt->subscribe(DISCONNECT_USER, 2);
+    m_mqtt->publish(CONNECT_USER, id_mqtt);
+}
+
+void Device::setN_cobaias(const size_t &value)
+{
+    on_experimentation = true;
+    n_cobaias = value;
+}
+
+QString Device::getId_mqtt() const
+{
+    return id_mqtt;
+}
