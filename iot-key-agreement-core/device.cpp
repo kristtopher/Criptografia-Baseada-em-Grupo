@@ -9,6 +9,8 @@
 using namespace boost::multiprecision;
 using namespace boost::random;
 
+size_t Device::n_devices = 0;
+
 Device::Device(const QString &host, const int port, const QString &user, const QString &password)
 {
     if(!user.isEmpty()){
@@ -38,6 +40,30 @@ Device::~Device()
 {
     m_mqtt->publish(DISCONNECT_USER, id_mqtt, 2);
     m_mqtt->disconnectFromBroker();
+}
+
+void Device::xtea_encrypt(const void *pt, void *ct, uint32_t *skey) {
+    uint8_t i;
+    uint32_t v0=((uint32_t*)pt)[0], v1=((uint32_t*)pt)[1];
+    uint32_t sum=0, delta=0x9E3779B9;
+    for(i=0; i<32; i++) {
+        v0 += ((v1 << 4 ^ v1 >> 5) + v1) ^ (sum + ((uint32_t*)skey)[sum & 3]);      //8
+        sum += delta;                                                               //1
+        v1 += ((v0 << 4 ^ v0 >> 5) + v0) ^ (sum + ((uint32_t*)skey)[sum>>11 & 3]);  //9
+    }
+    ((uint32_t*)ct)[0]=v0; ((uint32_t*)ct)[1]=v1;
+}
+
+void Device::xtea_decrypt(const void *ct, void *pt, uint32_t *skey) {
+    uint8_t i;
+    uint32_t v0=((uint32_t*)ct)[0], v1=((uint32_t*)ct)[1];
+    uint32_t sum=0xC6EF3720, delta=0x9E3779B9;
+    for(i=0; i<32; i++) {
+        v1 -= ((v0 << 4 ^ v0 >> 5) + v0) ^ (sum + ((uint32_t*)skey)[sum>>11 & 3]);
+        sum -= delta;
+        v0 -= ((v1 << 4 ^ v1 >> 5) + v1) ^ (sum + ((uint32_t*)skey)[sum & 3]);
+    }
+    ((uint32_t*)pt)[0]=v0; ((uint32_t*)pt)[1]=v1;
 }
 
 //ERIKA
@@ -78,7 +104,7 @@ __uint32_t floatToUint32(float f){
     return word;
 }
 
-int8_t * read_ECG(int node){
+int8_t * Device::read_ECG(int node){
     int8_t myEcg[500];
     FILE *fpa;
     char buff[255];

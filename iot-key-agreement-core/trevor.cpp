@@ -25,7 +25,6 @@ const QString SESSION_KEY = "ERIKA/sessionkey";
 
 Trevor::Trevor(const QString host, const quint16 port, const QString username, const QString password)
 {
-    Device::n_devices = 0;
     this->init(host, port, username, password);
 }
 

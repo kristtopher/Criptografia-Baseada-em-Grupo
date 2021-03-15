@@ -22,6 +22,8 @@ private:
     boost::multiprecision::mpz_int compute_session_key_ERIKA(int8_t *myEcg);
 
     std::string generate_random_id(std::string &str, size_t len);
+    void xtea_encrypt(const void *pt, void *ct, uint32_t *skey);
+    void xtea_decrypt(const void *ct, void *pt, uint32_t *skey);
 
 signals:
     void emitTotalTime(int totalTime);
@@ -52,6 +54,7 @@ private:
 
 public:
     static size_t n_devices;
+
 };
 
 #endif // DEVICE_H

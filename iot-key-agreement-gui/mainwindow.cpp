@@ -11,7 +11,6 @@ MainWindow::MainWindow(QWidget *parent) :
     ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-
     params_ui = new ParamsGUI();
     experiments = new ExperimentsUI();
     ui->tabWidget->removeTab(1);
