@@ -4,6 +4,7 @@
 #include <random>
 #include <string>
 #include "FFT.h"
+#include <gmpxx.h>
 #include "FFT.cpp"
 
 using namespace boost::multiprecision;
@@ -13,14 +14,18 @@ size_t Device::n_devices = 0;
 
 Device::Device(const QString &host, const int port, const QString &user, const QString &password)
 {
+
     if(!user.isEmpty()){
         m_mqtt = new MQTTServer(host, port, user, password);
     }else {
         m_mqtt = new MQTTServer(host, port);
     }
 
+    QObject::connect(m_mqtt, &MQTTServer::messageReceived, this, &Device::onMessageReceived);
+    QObject::connect(m_mqtt, &MQTTServer::connected, this, &Device::subscribeToTopics);
+
     n_devices++;
-    server_id = n_devices;
+    server_id = n_devices+1;
 
     std::string id(10, 1);
     generate_random_id(id, 10);
@@ -28,12 +33,6 @@ Device::Device(const QString &host, const int port, const QString &user, const Q
     qDebug() << "MQTT id: " << id_mqtt << "\n";
     m_mqtt->setIdMqtt(id_mqtt);
     m_mqtt->connectToBroker();
-
-    auto ecg = read_ECG(server_id);
-    session_key = compute_session_key_ERIKA(ecg);
-
-    QObject::connect(m_mqtt, &MQTTServer::messageReceived, this, &Device::onMessageReceived);
-    QObject::connect(m_mqtt, &MQTTServer::connected, this, &Device::subscribeToTopics);
 }
 
 Device::~Device()
@@ -105,10 +104,10 @@ __uint32_t floatToUint32(float f){
 }
 
 int8_t * Device::read_ECG(int node){
-    int8_t myEcg[500];
+    int8_t *myEcg = new int8_t[500];
     FILE *fpa;
     char buff[255];
-    std::string filename = "key_p" + std::to_string(node) + "r1.txt";
+    std::string filename = "p" + std::to_string(node) + "r1.txt";
     //        string outfilename = "../key_p" + to_string(n) + "r1.txt";
     //        string filename = "../p1r" + to_string(n) + ".txt";
     //        string outfilename = "../key_p1r" + to_string(n) + ".txt";
@@ -130,8 +129,8 @@ boost::multiprecision::mpz_int Device::compute_session_key_ERIKA(int8_t *myEcg){
     mpz_int result = 0;
     float vReal[samples];
     float vImag[samples];
-    int8_t key[16];
-    int8_t pkey[16];
+    uint8_t key[16];
+    uint8_t pkey[16];
     //int8_t myEcg[] = {-2, -3, -2, -2, -2, 0, -1, -2, 0, 0, 1, 2, 0, 1, 2, 4, 3, 4, 5, 4, 2, 2, 1, 0, 1, 0, -1, -1, -2, -1, -2, 0, -2, -2, 0, 0, -2, -4, -2, -2, -2, -2, -1, -2, -3, -2, -2, -2, -2, 19, -8, -2, -2, -2, -2, 0, -2, -2, -2, -2, -2, -2, -3, -2, -3, -1, -3, -2, -4, -5, -4, -3, -2, -4, 0, 11, 26, 34, 23, 8, 0, 1, 0, 0, -2, -2, -3, -5, -2, -4, -5, -3, -2, -3, -2, -3, -2, -2, -1, 0, -2, -1, 0, 0, -1, 0, 0, 2, 2, 2, 3, 2, 4, 2, 3, 2, 1, 1, 0, 0, 0, -1, -2, -1, -3, -2, -2, -2, -2, -1, -2, -1, -2, -4, -2, -2, 0, -2, -2, -4, -3, -2, -3, 17, -9, -2, -1, -3, -2, -3, -1, -2, -3, -2, -2, -3, -4, -2, -4, -2, -3, -5, -4, -4, -5, -4, -4, -2, -2, 11, 24, 33, 24, 8, -2, -3, 1, -2, -1, -2, -4, -3, -5, -3, -4, -4, -2, -3, -2, -3, -2, -1, -2, -2, -2, -1, 0, 0, 1, 0, 0, 2, 1, 3, 2, 4, 4, 3, 2, 4, 1, 2, 0, -1, 0, 0, -2, -2, -1, -2, -3, -2, -2, 0, -2, -2, -2, -2, -2, -3, -2, -2, -2, -3, -2, -2, -2, 22, -11, -3, -2, -3, -2, -2, -1, -2, -3, -2, -3, -2, -3, -2, -3, -2, -2, -4, -5, -3, -4, -3, -5, -2, -3, 8, 21, 32, 33, 10, 0, -2, 1, 0, -2, -4, -2, -1, -4, -5, -2, -3, -3, -2, -2, -2, -1, -2, 0, -2, 0, -1, 0, 0, 0, 1, 1, 1, 2, 3, 4, 3, 4, 5, 4, 4, 2, 2, 0, 0, 0, 0, 0, -2, -1, -2, -2, -3, -1, -2, -1, -2, -3, 0, -1, -2, -2, -1, -2, -3, -2, -2, -2, 19, -9, -2, -2, -1, -2, -1, -2, -2, 0, -2, -1, 0, -4, -2, -1, -2, -2, -3, -2, -3, -3, -2, -4, -3, -2, 4, 17, 31, 35, 19, 6, 2, 0, 0, 0, -2, -2, -2, -3, -2, -2, -3, -2, -2, -1, -2, -2, -1, 0, -2, 0, 0, 0, 0, 0, 0, 2, 2, 2, 3, 3, 3, 4, 4, 5, 4, 2, 3, 2, 0, 0, 0, -1, 0, 0, -1, -2, 0, -1, 0, -1, -1, 0, -2, -1, 0, -1, -1, -1, -1, 0, 0, -3, -2, 13, -5, -3, -2, -2, 0, 0, -1, 0, -1, 0, -2, -1, -2, 0, -2, 0, -2, -2, -4, -4, -3, -2, -2, -1, 0, 13, 28, 37, 25, 11, 2, 0, 1, -1, -2, -2, -3, -4, -2, -2, -3, -2, -2, -3, -2, -2, -2, 0, -1, 0, -1, 0, 0, 0, 0, 1, 1, 2, 1, 3, 3, 3, 4, 4, 4, 4, 2, 1, 0, 0, 0, -1, -2, -2, -1, -2, -2, -2, -1, -2, -1, -2, -1, -1, -2, -2, -1, -2, -2, -2, -2, -2, -2, 17, -8, -2, -3, -1, -2, 0, -1, 0, -3, -2, -1, -2, -2, -1, -2, -2, -1, -4, -4, -5, -3, -4, -2, -4, -1, 9, 21, 34, 35, 10, 0, -1, 0, -1, -2, -2, -2, -4, -5, -3, -2, -2, -2, -3, -2, -2, -1, -1, 0, -2, 0, 0, 0, 0, 1, 0, 2, 3, 2, 2, 2, 4, 3, 4, 3, 4, 2, 1, 2, 0, -1, 0, -1, -2, -2, -1, 0, -2, 0, -2, -3, -2, -1, -2, -2, -2, -1, -2, -2, -2, -2, -3, -2, 17, -11, -2, -1, -2, 0, -2, -1, 0, -2, -1, -2, -1, -2, -2, -3, -2, -2, -2, -3, -3, -4, -5, -4, -5, -1, 6, 20, 32, 33, 13, 1, -2, 0, -1, -2};
 
     __uint32_t features[samples / 2];
@@ -173,18 +172,9 @@ boost::multiprecision::mpz_int Device::compute_session_key_ERIKA(int8_t *myEcg){
     for (int g = 0; g < 16; g++) {
         key[g] = key[g] ^ pkey[g];
         result = result << 8;
-        result = result && key[g];
+        result = result | key[g];
     }
 
-    //    printf("key: \n");
-    //    for (int l = 0; l < 16; ++l) {
-    //        byteToBin(key[l]);
-    //        printf("\n");
-    //    }
-
-
-    //cpp_dec_float_50 bits = boost::multiprecision::log2(session_key.convert_to<cpp_dec_float_50>());
-    //qDebug() << "number of bits: " << QString::fromStdString(bits.convert_to<mpz_int>().str()) << "\n";
     m_mqtt->publish(SESSION_KEY, this->id_mqtt + QString("_") + QString::fromStdString(result.str()), 2);
     session_key_computed = true;
     return result;
@@ -254,7 +244,12 @@ void Device::subscribeToTopics()
     m_mqtt->subscribe(COMMAND_USER, 2);
     m_mqtt->subscribe(PARAM_SESSIONKEY, 2);
     m_mqtt->subscribe(DISCONNECT_USER, 2);
-    m_mqtt->publish(CONNECT_USER, id_mqtt);
+
+    auto ecg = read_ECG(server_id);
+    session_key = compute_session_key_ERIKA(ecg);
+
+    qDebug() << QString::fromStdString(session_key.str());
+    m_mqtt->publish(CONNECT_USER, this->id_mqtt, 2);
 }
 
 void Device::setN_cobaias(const size_t &value)

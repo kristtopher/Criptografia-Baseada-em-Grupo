@@ -87,10 +87,13 @@ private:
     QMap<QString, boost::multiprecision::mpz_int> params;
     QMap<QString, QString> users_keys;
     QQueue<QString> users_queue;
-    boost::multiprecision::mpz_int group_key;
+    boost::multiprecision::mpz_int group_key, session_key;
 
 
     void connect_user(const QString& user);
+    boost::multiprecision::mpz_int compute_session_key_ERIKA(int8_t *myEcg);
+    int8_t * read_ECG(int node);
+
 };
 
 #endif // TREVOR_H

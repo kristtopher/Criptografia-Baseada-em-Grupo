@@ -37,7 +37,7 @@ private:
     const QString DISCONNECT_USER = "dcc075/users/disconnect";
     const QString NUMBER_USERS = "dcc075/users/number_users";
     const QString COMMAND_USER = "dcc075/users/command";
-    const QString SESSION_KEY = "dcc075/sessionkey";
+    const QString SESSION_KEY = "ERIKA/sessionkey";
     QString PARAM_SESSIONKEY = "ERIKA/params/sessionkey";
 
 
