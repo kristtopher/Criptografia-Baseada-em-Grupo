@@ -38,7 +38,6 @@ Device::Device(const QString &host, const int port, const QString &user, const Q
 Device::~Device()
 {
     m_mqtt->publish(DISCONNECT_USER, id_mqtt, 2);
-    m_mqtt->disconnectFromBroker();
 }
 
 void Device::xtea_encrypt(const void *pt, void *ct, uint32_t *skey) {
@@ -221,14 +220,14 @@ void Device::onMessageReceived(const QByteArray &message, const QMqttTopicName &
        // if(server_id == 0) server_id = n_users;
     }
     if(topic_name == DISCONNECT_USER){
-        auto it = users.begin();
-        size_t i;
-        for(i = 0; it != users.end(); it++, i++){
-            if((*it) == message_content) break;
-        }
-        users.erase(it);
-        n_users--;
-        //if(n_users > 1 && n_users == gammas.size()) compute_session_key();
+//        auto it = users.begin();
+//        size_t i;
+//        for(i = 0; it != users.end(); it++, i++){
+//            if((*it) == message_content) break;
+//        }
+//        users.erase(it);
+//        n_users--;
+//        //if(n_users > 1 && n_users == gammas.size()) compute_session_key();
         qDebug() << QString("[") + id_mqtt + QString("]: ") + message_content << " disconnected.\n";
     }
 

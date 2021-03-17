@@ -212,13 +212,13 @@ void Trevor::onMessageReceived(const QByteArray &message, const QMqttTopicName &
 
         mpz_int user_session_key = mpz_int(users_keys[message_content].toStdString());
         users_keys.remove(message_content);
-        group_key ^= user_session_key;
+        if(n_users-- >= 2)group_key ^= user_session_key;
         m_mqtt->publish(PARAM_SESSIONKEY, QString::fromStdString(group_key.str()), 2);
         emit sessionKeyComputed("groupkey", QString::fromStdString(group_key.str()));
-        std::remove_if(users.begin(), users.end(), [&message_content](const QString user){
+        users.erase(std::remove_if(users.begin(), users.end(), [&message_content](const QString user){
             return (user == message_content);
-        });
-        n_users--;
+        }));
+        Device::n_devices--;
         emit userDisconnected(message_content);
         qDebug() << message_content << " disconnected.\n";
     }
