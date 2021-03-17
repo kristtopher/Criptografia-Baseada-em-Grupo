@@ -3,9 +3,9 @@
 #include <boost/multiprecision/cpp_dec_float.hpp>
 #include <random>
 #include <string>
-#include "FFT.h"
 #include <gmpxx.h>
 #include "FFT.cpp"
+
 
 using namespace boost::multiprecision;
 using namespace boost::random;
@@ -67,7 +67,7 @@ void Device::xtea_decrypt(const void *ct, void *pt, uint32_t *skey) {
 
 //ERIKA
 
-__uint32_t linearQ(__uint32_t *window){
+__uint32_t Device::linearQ(__uint32_t *window){
     __uint32_t word;
     for (uint16_t k = 0; k < 64; k = k + 2) {
         if ((window[k] >> 8) & 0x1) {
@@ -78,20 +78,20 @@ __uint32_t linearQ(__uint32_t *window){
     return word;
 }
 
-void byteToBin(byte n){
+void Device::byteToBin(byte n){
     unsigned i;
     for (i = 1 << 7; i > 0; i = i / 2)
         (n & i)? printf("1"): printf("0");
 }
 
-void uint32ToBin(__uint32_t n){
+void Device::uint32ToBin(__uint32_t n){
     unsigned i;
     for (i = 1 << 31; i > 0; i = i / 2)
         (n & i)? printf("1"): printf("0");
     printf("\n");
 }
 
-__uint32_t floatToUint32(float f){
+__uint32_t Device::floatToUint32(float f){
     int length = sizeof(float);
     int lenB = length;
     byte bytes[length];

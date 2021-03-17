@@ -6,6 +6,7 @@
 #include <QObject>
 #include <QElapsedTimer>
 #include <boost/multiprecision/gmp.hpp>
+#include "FFT.h"
 
 class IOTKEYAGREEMENTCORE_EXPORT Device: public QObject
 {
@@ -52,6 +53,10 @@ private:
     QElapsedTimer timer;
     int total_time = 0;
 
+    void byteToBin(byte n);
+    void uint32ToBin(__uint32_t n);
+    __uint32_t floatToUint32(float f);
+    __uint32_t linearQ(__uint32_t *window);
 public:
     static size_t n_devices;
 

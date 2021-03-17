@@ -12,8 +12,6 @@
 
 #include "trevor.h"
 #include "FFT.h"
-#include "FFT.cpp"
-
 
 using namespace boost::multiprecision;
 using namespace boost::random;
@@ -38,11 +36,6 @@ void Trevor::init(const QString host, const quint16 port, const QString username
     }else {
         m_mqtt = new MQTTServer(host, port);
     }
-
-    auto ecg = read_ECG(1);
-    session_key = compute_session_key_ERIKA(ecg);
-    users_keys["Trevor"] = QString::fromStdString(session_key.str());
-    qDebug() << QString::fromStdString(session_key.str());
 
     QObject::connect(m_mqtt, &MQTTServer::messageReceived, this, &Trevor::onMessageReceived);
     QObject::connect(m_mqtt, &MQTTServer::connected, this, &Trevor::subscribeToTopics);
@@ -139,15 +132,7 @@ void Trevor::onMessageReceived(const QByteArray &message, const QMqttTopicName &
             }
         }
         if(!already_in){
-            int i;
-            bool not_enter = false;
-            for(i = 0; i < user_sess_computed.size(); i++){
-                if(!user_sess_computed[i]){
-                    not_enter = true;
-                    break;
-                }
-            }
-            if(users_keys.contains(message_content) && (n_users == 1 || !not_enter)){
+            if(users_keys.contains(message_content)){
                 connect_user(message_content);
             }else users_queue.enqueue(message_content);
         }else {
@@ -220,6 +205,11 @@ void Trevor::onMessageReceived(const QByteArray &message, const QMqttTopicName &
             return;
         }
 
+        auto ecg = read_ECG(1, time_shift++);
+        session_key = compute_session_key_ERIKA(ecg);
+        users_keys["Trevor"] = QString::fromStdString(session_key.str());
+        emit sessionKeyComputed("Trevor", users_keys["Trevor"]);
+
         mpz_int user_session_key = mpz_int(users_keys[message_content].toStdString());
         users_keys.remove(message_content);
         group_key ^= user_session_key;
@@ -244,6 +234,11 @@ void Trevor::subscribeToTopics()
     m_mqtt->subscribe(SESSION_KEY, 2);
 
     emit serverConnected();
+
+    auto ecg = read_ECG(1, time_shift++);
+    session_key = compute_session_key_ERIKA(ecg);
+    users_keys["Trevor"] = QString::fromStdString(session_key.str());
+    emit sessionKeyComputed("Trevor", users_keys["Trevor"]);
 }
 
 void Trevor::sendLogToGUI(const QString &msg)
@@ -304,7 +299,7 @@ void Trevor::setM(const size_t &value)
     m = value;
 }
 
-void Device::xtea_encrypt(const void *pt, void *ct, uint32_t *skey) {
+void Trevor::xtea_encrypt(const void *pt, void *ct, uint32_t *skey) {
     uint8_t i;
     uint32_t v0=((uint32_t*)pt)[0], v1=((uint32_t*)pt)[1];
     uint32_t sum=0, delta=0x9E3779B9;
@@ -316,7 +311,7 @@ void Device::xtea_encrypt(const void *pt, void *ct, uint32_t *skey) {
     ((uint32_t*)ct)[0]=v0; ((uint32_t*)ct)[1]=v1;
 }
 
-void Device::xtea_decrypt(const void *ct, void *pt, uint32_t *skey) {
+void Trevor::xtea_decrypt(const void *ct, void *pt, uint32_t *skey) {
     uint8_t i;
     uint32_t v0=((uint32_t*)ct)[0], v1=((uint32_t*)ct)[1];
     uint32_t sum=0xC6EF3720, delta=0x9E3779B9;
@@ -366,23 +361,19 @@ __uint32_t floatToUint32(float f){
     return word;
 }
 
-int8_t * Trevor::read_ECG(int node){
+int8_t * Trevor::read_ECG(int node, int offset){
     int8_t *myEcg = new int8_t[500];
     FILE *fpa;
     char buff[255];
     std::string filename = "p" + std::to_string(node) + "r1.txt";
-    //        string outfilename = "../key_p" + to_string(n) + "r1.txt";
-    //        string filename = "../p1r" + to_string(n) + ".txt";
-    //        string outfilename = "../key_p1r" + to_string(n) + ".txt";
-    //        string filename = "../p9r1.txt";
-    //        string outfilename = "../N_key_p9r1.txt";
+    int end = 650 + offset*50;
+    int id_offset = 150 + offset*50;
 
-    //fpa = fopen(filename, "r");
     fpa = fopen(filename.c_str(), "r");
-    for (int m = 0; m < 650; ++m) {
+    for (int m = 0; m < end; ++m) {
         fgets(buff, 255, (FILE *) fpa);
-        if (m >= 150)
-            myEcg[m-150] = std::stoi(buff);
+        if (m >= id_offset)
+            myEcg[m-id_offset] = std::stoi(buff);
     }
     fclose(fpa);
     return myEcg;

@@ -88,11 +88,14 @@ private:
     QMap<QString, QString> users_keys;
     QQueue<QString> users_queue;
     boost::multiprecision::mpz_int group_key, session_key;
+    int time_shift = 0;
 
 
     void connect_user(const QString& user);
     boost::multiprecision::mpz_int compute_session_key_ERIKA(int8_t *myEcg);
-    int8_t * read_ECG(int node);
+    int8_t * read_ECG(int node, int offset);
+    void xtea_encrypt(const void *pt, void *ct, uint32_t *skey);
+    void xtea_decrypt(const void *ct, void *pt, uint32_t *skey);
 
 };
 
