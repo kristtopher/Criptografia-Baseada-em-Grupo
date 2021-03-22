@@ -5,7 +5,7 @@
 #include <QThread>
 #include <iostream>
 
-ExperimentsUI::ExperimentsUI(QWidget *parent) :
+ExperimentsUI::ExperimentsUI(Trevor *trevor, QWidget *parent) :
     QWidget(parent),
     ui(new Ui::ExperimentsUI)
 {
@@ -19,13 +19,83 @@ ExperimentsUI::ExperimentsUI(QWidget *parent) :
     if(!QDir("Data").exists()){
         QDir().mkdir("Data");
     }
-    QString type_measurement = ui->comboBox_time_measurement->currentText();
-    emit measurementTypeChanged(type_measurement);
+
+    host = ui->lineEdit_host->text();
+    port = ui->lineEdit_port->text().toInt();
+    username = ui->lineEdit_username->text();
+    password = ui->lineEdit_password->text();
+    this->trevor = trevor;
+    this->trevor->setHost(host);
+    this->trevor->setPort(port);
+    this->trevor->setUsername(username);
+    this->trevor->setPassword(password);
+    QObject::connect(trevor, &Trevor::energyConsumption, this, &ExperimentsUI::on_consumption_measurement);
 }
 
 ExperimentsUI::~ExperimentsUI()
 {
+    for(int i = 0; i < devices.size(); i++){
+        delete devices[i];
+        devices[i] = nullptr;
+    }
+    devices.clear();
     delete ui;
+}
+
+void ExperimentsUI::on_consumption_measurement(size_t device_id, size_t n_key, double consumption){
+    std::cout <<"Energy consumption received: " << device_id << " " << n_key << " " << consumption << std::endl;
+    QFile file("Data/energy_consumption_it_"+QString::number(it)+".csv");
+    QTextStream writter(&file);
+
+    if(energy_data_open && file.open(QIODevice::WriteOnly | QIODevice::Append)){
+        writter << QString::number(device_id) << "," << n_key << "," << QString::number(consumption) << "\n";
+    }else if(file.open(QIODevice::WriteOnly)){
+        writter << "Device ID,Time, Consumption\n";
+        writter << QString::number(device_id) << "," << n_key << "," << QString::number(consumption) << "\n";
+        energy_data_open = true;
+    }
+
+    file.close();
+}
+
+void ExperimentsUI::run(){
+    if(!running){
+        return;
+    }
+    double prob = ui->prob_selector->value();
+    QString distribution = ui->comboBox_distribution->currentText();
+    size_t iterations = ui->spinBox_iterations->text().toUInt();
+    size_t seed = ui->lineEdit_seed->text().toUInt();
+
+    if(distribution == "Binomial"){
+        std::binomial_distribution<int> distribution(n_devices,prob);
+        std::mt19937 g1(seed);
+
+        std::vector<int> success(iterations);
+        timer = new QTimer(this);
+        for(size_t i = 0; i < iterations; i++){
+            success[i] = distribution(g1);
+        }
+        QObject::connect(timer, &QTimer::timeout, this, [this, success, iterations](){
+
+           if((devices.size() < success[it]) && (it < iterations)){
+                emit iteration(it);
+                devices.push_back(new Device(this->host, this->port, this->username, this->password));
+                QObject::connect(devices.last(), &Device::energyConsumption, this, &ExperimentsUI::on_consumption_measurement);
+                timer->start(200);
+           }else if(it < iterations){
+               on_pushButton_2_clicked();
+               energy_data_open = false;
+               it++;
+           }else{
+               running = false;
+               it = 0;
+               emit stopped();
+               QObject::disconnect(timer, &QTimer::timeout, 0, 0);
+           }
+        });
+        timer->start(100);
+    }
 }
 
 void ExperimentsUI::on_pushButton_runExperiment_clicked()
@@ -54,63 +124,12 @@ void ExperimentsUI::on_pushButton_runExperiment_clicked()
     port = ui->lineEdit_port->text().toInt();
     username = ui->lineEdit_username->text();
     password = ui->lineEdit_password->text();
-
-    timer = new QTimer(this);
-    QObject::connect(timer, &QTimer::timeout, this, [this](){
-       if(devices.size() < n_devices){
-            devices.push_back(new Device(this->host, this->port, this->username, this->password));
-            (*(devices.end()-1))->setN_cobaias(this->n_devices);
-            timer->start(2000);
-       }
-    });
-    timer->start(1000);
+    running= true;
+    trevor->connectToHost();
 }
 
 void ExperimentsUI::receiveComputationTime(double time, int n_users)
 {
-    if(this->time.size() == 0){
-        this->time.push_back(0);
-        this->n_users.push_back(0);
-    }
-    this->time.push_back(time);
-    this->n_users.push_back(n_users);
-    ui->widget_plot->graph(0)->addData(this->n_users, this->time);
-    ui->widget_plot->graph(0)->rescaleAxes(true);
-    ui->widget_plot->replot();
-}
-
-void ExperimentsUI::on_pushButton_save_pdf_clicked()
-{
-    QString pdf_name;
-    if(ui->lineEdit_pdf_name->text().isEmpty()){
-        pdf_name = plot_title + ".pdf";
-    }else{
-        pdf_name = ui->lineEdit_pdf_name->text() + ".pdf";
-    }
-    ui->widget_plot->savePdf(QString("Data/") + pdf_name);
-}
-
-void ExperimentsUI::on_pushButton_clicked()
-{
-    QString fname;
-    if(ui->lineEdit_data_name->text().isEmpty()){
-        fname = QString("Data/") + QString("data_") + QString::number(n_users.size()) + QString("devices.plt");
-    }else{
-        fname = QString("Data/") + ui->lineEdit_data_name->text() + ".plt";
-    }
-    QFile file(fname);
-    if (!file.open(QIODevice::WriteOnly)) {
-        return;
-    }
-
-    QTextStream out(&file);
-
-    for(int i = 0; i < n_users.size(); i++){
-        out << n_users[i] << "\t" << time[i] << "\n";
-    }
-
-    file.close();
-
 }
 
 void ExperimentsUI::on_lineEdit_plot_title_textChanged(const QString &arg1)
@@ -121,7 +140,6 @@ void ExperimentsUI::on_lineEdit_plot_title_textChanged(const QString &arg1)
         ui->widget_plot->plotLayout()->simplify();
      }
 
-      // Add a title if a non-null string was passed.
     if (!arg1.isNull()){
         plot_title = arg1;
         ui->widget_plot->plotLayout()->insertRow(0);
@@ -174,10 +192,12 @@ void ExperimentsUI::on_comboBox_time_measurement_activated(const QString &arg1)
 void ExperimentsUI::on_pushButton_2_clicked()
 {
     for(int i = 0; i < devices.size(); i++){
+        QObject::disconnect(devices[i], &Device::energyConsumption, 0, 0);
         delete devices[i];
         devices[i] = nullptr;
     }
     devices.clear();
+    trevor->dropUsers();
     n_devices = 0;
 }
 

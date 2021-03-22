@@ -12,9 +12,6 @@ MainWindow::MainWindow(QWidget *parent) :
 {
     ui->setupUi(this);
     params_ui = new ParamsGUI();
-    experiments = new ExperimentsUI();
-    ui->tabWidget->removeTab(1);
-    ui->tabWidget->addTab(experiments, "Experiments");
     users_model = new QStringListModel(this);
     users_model->setStringList(users_list);
     ui->listView_users->setModel(users_model);
@@ -56,16 +53,21 @@ MainWindow::MainWindow(QWidget *parent) :
         file.close();
     }
     trevor = new Trevor(host, port.toInt(), username, password);
-    trevor->setM(3);
-    trevor->setN(3);
-    ui->lineEdit_m->setText(QString::number(3));
-    ui->lineEdit_n->setText(QString::number(3));
+    experiments = new ExperimentsUI(trevor);
+    ui->tabWidget->removeTab(1);
+    ui->tabWidget->addTab(experiments, "Experiments");
+
     QObject::connect(trevor, &Trevor::userConnected, this, &MainWindow::addUserToListView);
     QObject::connect(trevor, &Trevor::sessionKeyComputed, this, &MainWindow::addSessionKeyToView);
     QObject::connect(trevor, &Trevor::emitLogMessage, this, &MainWindow::addLogMessageToView);
     QObject::connect(trevor, &Trevor::sessionParamsComputed, params_ui, &ParamsGUI::receiveParameters);
     QObject::connect(trevor, &Trevor::sessionTime, experiments, &ExperimentsUI::receiveComputationTime);
     QObject::connect(experiments, &ExperimentsUI::measurementTypeChanged, trevor, &Trevor::changeMeasurementType);
+    QObject::connect(trevor, &Trevor::serverConnected, experiments, &ExperimentsUI::run);
+    QObject::connect(experiments, &ExperimentsUI::iteration, this, &MainWindow::update_iteration);
+    QObject::connect(experiments, &ExperimentsUI::stopped, this, [this](){
+        ui->label_it->setText("");
+    });
     QObject::connect(trevor, &Trevor::userDisconnected, params_ui, [this](const QString user){
         size_t row = 0;
         for(auto _user: users_list){
@@ -76,7 +78,24 @@ MainWindow::MainWindow(QWidget *parent) :
         users_list.erase(std::remove_if(this->users_list.begin(), this->users_list.end(), [&user](QString _user){
             return (user == _user);
         }), users_list.end());
+
+        if(users_list.size() > 1){
+            ui->label_list_users->setText(QString::number(users_list.size()) + " devices connected.");
+        }else if(users_list.size() == 1){
+            ui->label_list_users->setText(QString::number(users_list.size()) + " device connected.");
+        }else{
+            ui->label_list_users->setText("No devices connected.");
+        }
     });
+}
+
+void MainWindow::update_iteration(int it){
+    if(!experiments->isRunning()){
+        ui->label_it->setText("");
+    }else{
+        ui->label_it->setText(QString("Iteration ") + QString::number(it+1));
+        qApp->processEvents();
+    }
 }
 
 MainWindow::~MainWindow()
@@ -117,8 +136,6 @@ void MainWindow::on_pushButton_connect_clicked()
 
         if(!trevor){
             trevor = new Trevor(host, port.toInt(), username, password);
-            trevor->setM(7);
-            trevor->setN(7);
         }else{
             trevor->setHost(host);
             trevor->setPort(port.toInt());
@@ -144,6 +161,14 @@ void MainWindow::addUserToListView(const QString user)
     users_list << user;
     users_model->setStringList(users_list);
     ui->listView_users->setModel(users_model);
+    if(users_list.size() > 1){
+        ui->label_list_users->setText(QString::number(users_list.size()) + " devices connected.");
+    }else if(users_list.size() == 1){
+        ui->label_list_users->setText(QString::number(users_list.size()) + " device connected.");
+    }else{
+        ui->label_list_users->setText("No devices connected.");
+    }
+    qApp->processEvents();
 }
 
 void MainWindow::addSessionKeyToView(const QString user, const QString session_key)
@@ -153,6 +178,7 @@ void MainWindow::addSessionKeyToView(const QString user, const QString session_k
     sesskey_model->setStringList(sesskey_list);
     ui->listView->setModel(sesskey_model);
     ui->listView->scrollToBottom();
+    qApp->processEvents();
 }
 
 void MainWindow::addLogMessageToView(const QString &msg)
@@ -161,6 +187,7 @@ void MainWindow::addLogMessageToView(const QString &msg)
     log_model->setStringList(log_list);
     ui->listView_log->setModel(log_model);
     ui->listView_log->scrollToBottom();
+    qApp->processEvents();
 }
 
 void MainWindow::on_pushButton_parameters_clicked()
@@ -176,11 +203,7 @@ void MainWindow::on_pushButton_clear_clicked()
 
 void MainWindow::on_pushButton_clicked()
 {
-    int m = ui->lineEdit_m->text().toInt();
-    int n = ui->lineEdit_n->text().toInt();
 
-    trevor->setM(m);
-    trevor->setN(n);
 }
 
 void MainWindow::on_pushButton_new_device_clicked()
@@ -199,6 +222,5 @@ void MainWindow::on_pushButton_remove_device_clicked()
     }
     delete devices[i];
     devices.erase(it);
+    qApp->processEvents();
 }
-
-

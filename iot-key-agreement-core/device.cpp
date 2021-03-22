@@ -14,7 +14,7 @@ size_t Device::n_devices = 0;
 
 Device::Device(const QString &host, const int port, const QString &user, const QString &password)
 {
-
+    time.start();
     if(!user.isEmpty()){
         m_mqtt = new MQTTServer(host, port, user, password);
     }else {
@@ -107,13 +107,7 @@ int8_t * Device::read_ECG(int node){
     FILE *fpa;
     char buff[255];
     std::string filename = "p" + std::to_string(node) + "r1.txt";
-    //        string outfilename = "../key_p" + to_string(n) + "r1.txt";
-    //        string filename = "../p1r" + to_string(n) + ".txt";
-    //        string outfilename = "../key_p1r" + to_string(n) + ".txt";
-    //        string filename = "../p9r1.txt";
-    //        string outfilename = "../N_key_p9r1.txt";
 
-    //fpa = fopen(filename, "r");
     fpa = fopen(filename.c_str(), "r");
     for (int m = 0; m < 650; ++m) {
         fgets(buff, 255, (FILE *) fpa);
@@ -152,7 +146,7 @@ boost::multiprecision::mpz_int Device::compute_session_key_ERIKA(int8_t *myEcg){
 
         words = linearQ(features);
         //words = exponentialQ(features);
-        uint32ToBin(words);
+        //uint32ToBin(words);
         for (int l = 3; l >= 0; l--) {
             key[l + (i * 4)] = uint8_t((words >> d) & 0xff);
             d += 8;
@@ -175,6 +169,7 @@ boost::multiprecision::mpz_int Device::compute_session_key_ERIKA(int8_t *myEcg){
     }
 
     m_mqtt->publish(SESSION_KEY, this->id_mqtt + QString("_") + QString::fromStdString(result.str()), 2);
+    emit energyConsumption(server_id, time.nsecsElapsed(), compute_energy_consumption());
     session_key_computed = true;
     return result;
 }
@@ -195,12 +190,20 @@ std::string Device::generate_random_id(std::string &str, size_t length)
     return str;
 }
 
+double Device::compute_energy_consumption(){
+    qint64 T = time.nsecsElapsed();
+
+    energy_used += V * (T - Ti)*I;
+
+    Ti = T;
+
+    return energy_used/1E9;
+}
+
 void Device::onMessageReceived(const QByteArray &message, const QMqttTopicName &topic)
 {
     QString topic_name = topic.name();
-    timer.start();
     QString message_content = QString::fromUtf8(message.data());
-    total_time += timer.elapsed();
 
     if(topic_name == COMMAND_USER){
         QStringList pieces = message_content.split('_');
@@ -211,24 +214,10 @@ void Device::onMessageReceived(const QByteArray &message, const QMqttTopicName &
 
     }
 
-    if(accepted) qDebug() << id_mqtt << " " << message << " " << topic;
+   // if(accepted) qDebug() << id_mqtt << " " << message << " " << topic;
 
     if(topic_name == NUMBER_USERS){
         n_users = message_content.toInt();
-        timer.start();
-        total_time += timer.elapsed();
-       // if(server_id == 0) server_id = n_users;
-    }
-    if(topic_name == DISCONNECT_USER){
-//        auto it = users.begin();
-//        size_t i;
-//        for(i = 0; it != users.end(); it++, i++){
-//            if((*it) == message_content) break;
-//        }
-//        users.erase(it);
-//        n_users--;
-//        //if(n_users > 1 && n_users == gammas.size()) compute_session_key();
-        qDebug() << QString("[") + id_mqtt + QString("]: ") + message_content << " disconnected.\n";
     }
 
     if(topic_name == PARAM_SESSIONKEY){
@@ -247,14 +236,12 @@ void Device::subscribeToTopics()
     auto ecg = read_ECG(server_id);
     session_key = compute_session_key_ERIKA(ecg);
 
-    qDebug() << QString::fromStdString(session_key.str());
     m_mqtt->publish(CONNECT_USER, this->id_mqtt, 2);
 }
 
 void Device::setN_cobaias(const size_t &value)
 {
     on_experimentation = true;
-    n_cobaias = value;
 }
 
 QString Device::getId_mqtt() const

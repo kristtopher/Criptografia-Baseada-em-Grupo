@@ -39,10 +39,6 @@ public:
 
     void setPort(const quint16 &value);
 
-    void setM(const size_t &value);
-
-    void setN(const size_t &value);
-
     virtual ~Trevor(){ };
 
     QMap<QString, boost::multiprecision::mpz_int> getParams() const;
@@ -73,22 +69,29 @@ signals:
 
     void serverConnected();
 
+    void empty();
+
+    void energyConsumption(size_t device_id, qint64 time, double consumption);
+
 private:
     QString host, username, password;
     QString time_type = "Individual";
     quint16 port;
-    size_t n_users = 0, m = 0, n = 0;
+    size_t n_users = 0, n_key = 0;
     bool sess_params_computed = false;
     MQTTServer *m_mqtt;
     QVector<QString> users;
-    QVector<QElapsedTimer> users_timer;
+    QElapsedTimer time;
     double time_counter = 0, max_time = 0;
+    double energy_used = 0.34;
+    double V = 0.7, I = 0.1; // Corrente (V) e tensão (I)
+    qint64 Ti = 0; // Last time
     QVector<bool> user_sess_computed;
     QMap<QString, boost::multiprecision::mpz_int> params;
     QMap<QString, QString> users_keys;
     QQueue<QString> users_queue;
-    boost::multiprecision::mpz_int group_key, session_key;
-    int time_shift = 0;
+    boost::multiprecision::mpz_int group_key, trevor_session_key;
+    int key_shift = 0;
 
 
     void connect_user(const QString& user);
@@ -96,7 +99,8 @@ private:
     int8_t * read_ECG(int node, int offset);
     void xtea_encrypt(const void *pt, void *ct, uint32_t *skey);
     void xtea_decrypt(const void *ct, void *pt, uint32_t *skey);
-
+    void update_key();
+    double compute_energy_consumption();
 };
 
 #endif // TREVOR_H

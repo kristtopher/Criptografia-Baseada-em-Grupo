@@ -28,6 +28,7 @@ private:
 
 signals:
     void emitTotalTime(int totalTime);
+    void energyConsumption(size_t device_id, qint64 time, double consumption);
 
 private slots:
     void onMessageReceived(const QByteArray &message, const QMqttTopicName &topic);
@@ -45,18 +46,23 @@ private:
 private:
     MQTTServer *m_mqtt;
     QString id_mqtt;
+    QElapsedTimer time;
     QVector<QString> users;
     boost::multiprecision::mpz_int session_key, group_key;
-    size_t n_users = 0, server_id = 0, n_cobaias = 0;
+    size_t n_users = 0, server_id = 0;
+    size_t n_key = 0;
+    double energy_used = 0.34;
+    double V = 0.7, I = 0.1; // Corrente (V) e tensão (I)
+    qint64 Ti = 0; // Last time
     bool session_key_computed = false, on_experimentation = false;
     bool accepted = false;
-    QElapsedTimer timer;
-    int total_time = 0;
 
     void byteToBin(byte n);
     void uint32ToBin(__uint32_t n);
     __uint32_t floatToUint32(float f);
     __uint32_t linearQ(__uint32_t *window);
+
+    double compute_energy_consumption();
 public:
     static size_t n_devices;
 

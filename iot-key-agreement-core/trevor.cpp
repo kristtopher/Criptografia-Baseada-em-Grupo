@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include<boost/multiprecision/number.hpp>
 #include <boost/random.hpp>
+#include <gmpxx.h>
 
 #include "trevor.h"
 #include "FFT.h"
@@ -31,6 +32,7 @@ Trevor::Trevor(const QString host, const quint16 port, const QString username, c
 
 void Trevor::init(const QString host, const quint16 port, const QString username, const QString password)
 {
+    time.start();
     if(!username.isEmpty()){
         m_mqtt = new MQTTServer(host, port, username, password);
     }else {
@@ -44,14 +46,19 @@ void Trevor::init(const QString host, const quint16 port, const QString username
 
 void Trevor::dropUsers()
 {
+    emit sessionKeyComputed(" ", " ");
     for(auto user: users){
         emit userDisconnected(user);
-        qDebug() << user << " disconnected.\n";
+        //qDebug() << user << " disconnected.\n";
     }
     users.erase(std::remove_if(this->users.begin(), this->users.end(), [](QString _user){
         return true;
     }), users.end());
     n_users = 0;
+    n_key = 0;
+    key_shift = 0;
+    time.start();
+    Device::n_devices = 0;
 }
 
 void Trevor::connectToHost()
@@ -76,8 +83,6 @@ void Trevor::connect_user(const QString& user)
 {
     m_mqtt->publish(COMMAND_USER, user + QString("_accepted"), 2);
     users.push_back(user);
-    users_timer.resize(users.size());
-    users_timer[users_timer.size()-1].start();
     user_sess_computed.push_back(false);
     user_sess_computed.fill(false);
     n_users++;
@@ -106,9 +111,7 @@ void Trevor::connect_user(const QString& user)
         group_key = mixed_session_key;
         m_mqtt->publish(PARAM_SESSIONKEY, QString::fromStdString(mixed_session_key.str()), 2);
         emit sessionKeyComputed("groupkey", QString::fromStdString(group_key.str()));
-        for(int i = 0; i < users_timer.size(); i++){
-            users_timer[i].restart();
-        }
+        emit energyConsumption(1, time.elapsed(), compute_energy_consumption());
     }
 
 //    if(sess_params_computed){
@@ -125,6 +128,7 @@ void Trevor::onMessageReceived(const QByteArray &message, const QMqttTopicName &
 
     if(topic_name == CONNECT_USER){
         bool already_in = false;
+
         for(auto user: users){
             if(user == message_content){
                 already_in = true;
@@ -142,8 +146,13 @@ void Trevor::onMessageReceived(const QByteArray &message, const QMqttTopicName &
     if(topic_name == SESSION_KEY){
         QStringList pieces = message_content.split("_");
         QString user = pieces[0], session_key = pieces[1];
-        int i;
 
+        if(users.size() == 0){
+            key_shift = 0;
+            update_key();
+        }
+
+        int i;
         for(i = 0; i < users.size(); i++){
             if(users[i] == user){
                 break;
@@ -154,24 +163,6 @@ void Trevor::onMessageReceived(const QByteArray &message, const QMqttTopicName &
         for(i = 0; i < user_sess_computed.size(); i++){
             if(!user_sess_computed[i]){
                 break;
-            }else{
-                double time_elapsed = double(users_timer[i].elapsed());
-                if(time_elapsed > max_time){
-                    max_time = time_elapsed/1000;
-                }
-            }
-        }
-        qDebug() << "i: " << i << "users: " << user_sess_computed.size();
-        if(i == user_sess_computed.size()){
-            qDebug() << time_counter;
-            if(time_type == "Individual"){
-                time_counter = max_time;
-            }else if(time_type == "Cummulative"){
-                time_counter += max_time;
-            }
-            emit sessionTime(time_counter, users.size());
-            if(time_type == "Individual"){
-                time_counter = 0.0;
             }
         }
 
@@ -201,20 +192,20 @@ void Trevor::onMessageReceived(const QByteArray &message, const QMqttTopicName &
             if(users[i] == message_content) break;
         }
         if(i == users.size()){
-            qWarning() << "\n" << message_content << "is not an user.\n";
+            qWarning() << "\n" << message_content << "is not connected.\n";
             return;
         }
 
-        auto ecg = read_ECG(1, time_shift++);
-        session_key = compute_session_key_ERIKA(ecg);
-        users_keys["Trevor"] = QString::fromStdString(session_key.str());
-        emit sessionKeyComputed("Trevor", users_keys["Trevor"]);
+        update_key();
 
         mpz_int user_session_key = mpz_int(users_keys[message_content].toStdString());
         users_keys.remove(message_content);
         if(n_users-- >= 2)group_key ^= user_session_key;
+
         m_mqtt->publish(PARAM_SESSIONKEY, QString::fromStdString(group_key.str()), 2);
         emit sessionKeyComputed("groupkey", QString::fromStdString(group_key.str()));
+        emit energyConsumption(1, time.elapsed(), compute_energy_consumption());
+
         users.erase(std::remove_if(users.begin(), users.end(), [&message_content](const QString user){
             return (user == message_content);
         }));
@@ -222,6 +213,36 @@ void Trevor::onMessageReceived(const QByteArray &message, const QMqttTopicName &
         emit userDisconnected(message_content);
         qDebug() << message_content << " disconnected.\n";
     }
+}
+
+double Trevor::compute_energy_consumption(){
+    qint64 T = time.elapsed();
+
+    energy_used += V * (T - Ti)*I;
+
+    Ti = T;
+
+    return energy_used;
+}
+
+void Trevor::update_key(){
+    // compute trevor key from ECG readings
+    auto ecg = read_ECG(1, key_shift++);
+    trevor_session_key = compute_session_key_ERIKA(ecg);
+
+    // get time elapsed in nanoseconds and compute the padding size
+    mpz_class t(QString::number(time.nsecsElapsed()).toStdString());
+    int time_nbits = t.get_str(2).size();
+    int key_nbits = mpz_class(trevor_session_key.str()).get_str(2).size();
+    int shift_size = key_nbits - time_nbits;
+
+    // mix the padded time with the computed session key
+    t = t << shift_size;
+    trevor_session_key ^= mpz_int(t.get_str(10));
+    users_keys["Trevor"] = QString::fromStdString(trevor_session_key.str());
+
+    emit sessionKeyComputed("Trevor", users_keys["Trevor"]);
+    emit energyConsumption(1, time.elapsed(), compute_energy_consumption());
 }
 
 void Trevor::subscribeToTopics()
@@ -234,11 +255,6 @@ void Trevor::subscribeToTopics()
     m_mqtt->subscribe(SESSION_KEY, 2);
 
     emit serverConnected();
-
-    auto ecg = read_ECG(1, time_shift++);
-    session_key = compute_session_key_ERIKA(ecg);
-    users_keys["Trevor"] = QString::fromStdString(session_key.str());
-    emit sessionKeyComputed("Trevor", users_keys["Trevor"]);
 }
 
 void Trevor::sendLogToGUI(const QString &msg)
@@ -289,15 +305,6 @@ void Trevor::setPort(const quint16 &value)
 }
 
 
-void Trevor::setN(const size_t &value)
-{
-    n = value;
-}
-
-void Trevor::setM(const size_t &value)
-{
-    m = value;
-}
 
 void Trevor::xtea_encrypt(const void *pt, void *ct, uint32_t *skey) {
     uint8_t i;
@@ -407,7 +414,7 @@ boost::multiprecision::mpz_int Trevor::compute_session_key_ERIKA(int8_t *myEcg){
 
         words = linearQ(features);
         //words = exponentialQ(features);
-        uint32ToBin(words);
+        //uint32ToBin(words);
         for (int l = 3; l >= 0; l--) {
             key[l + (i * 4)] = uint8_t((words >> d) & 0xff);
             d += 8;

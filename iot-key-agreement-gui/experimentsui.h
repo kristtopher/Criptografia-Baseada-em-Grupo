@@ -16,15 +16,13 @@ class ExperimentsUI : public QWidget
     Q_OBJECT
 
 public:
-    explicit ExperimentsUI(QWidget *parent = nullptr);
+    explicit ExperimentsUI(Trevor *trevor, QWidget *parent = nullptr);
+    bool isRunning() { return this->running; }
+
     ~ExperimentsUI();
 
 private slots:
     void on_pushButton_runExperiment_clicked();
-
-    void on_pushButton_save_pdf_clicked();
-
-    void on_pushButton_clicked();
 
     void on_lineEdit_plot_title_textChanged(const QString &arg1);
 
@@ -40,15 +38,19 @@ private slots:
 
     void on_pushButton_clear_plot_clicked();
 
+    void on_consumption_measurement(size_t device_id, size_t n_key, double consumption);
 public slots:
 
     void receiveComputationTime(double time, int n_users);
+     void run();
 
 signals:
     void measurementTypeChanged(const QString &measurement_type);
-
+    void iteration(int it);
+    void stopped();
 private:
     Ui::ExperimentsUI *ui;
+    Trevor *trevor;
     QString plot_title;
     size_t n_devices, n_finished = 0;
     QVector<Device *> devices;
@@ -57,6 +59,8 @@ private:
     QTimer *timer;
     QVector<double> time;
     QVector<double> n_users;
+    bool running = false, energy_data_open = false;
+    size_t it = 0;
     int total_comp_time = 0;
 };
 

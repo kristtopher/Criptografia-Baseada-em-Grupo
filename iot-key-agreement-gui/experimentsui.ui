@@ -46,7 +46,11 @@
              </widget>
             </item>
             <item>
-             <widget class="QLineEdit" name="lineEdit_host"/>
+             <widget class="QLineEdit" name="lineEdit_host">
+              <property name="text">
+               <string>127.0.0.1</string>
+              </property>
+             </widget>
             </item>
             <item>
              <widget class="QLabel" name="label_port">
@@ -68,7 +72,11 @@
              </widget>
             </item>
             <item>
-             <widget class="QLineEdit" name="lineEdit_port"/>
+             <widget class="QLineEdit" name="lineEdit_port">
+              <property name="text">
+               <string>1883</string>
+              </property>
+             </widget>
             </item>
            </layout>
           </item>
@@ -130,6 +138,22 @@
          </property>
          <layout class="QVBoxLayout" name="verticalLayout_4">
           <item>
+           <widget class="QLabel" name="label">
+            <property name="text">
+             <string>Distribution</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QComboBox" name="comboBox_distribution">
+            <item>
+             <property name="text">
+              <string>Binomial</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item>
            <widget class="QLabel" name="label_ndevices">
             <property name="text">
              <string>Number of devices:</string>
@@ -144,111 +168,69 @@
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QLabel" name="label">
             <property name="text">
-             <string>Type of time measure:</string>
+             <string>10</string>
             </property>
            </widget>
           </item>
           <item>
-           <widget class="QComboBox" name="comboBox_time_measurement">
-            <item>
-             <property name="text">
-              <string>Individual</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Cummulative</string>
-             </property>
-            </item>
+           <widget class="QLabel" name="label_4">
+            <property name="text">
+             <string>Seed:</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLineEdit" name="lineEdit_seed">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="text">
+             <string>0</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="label_2">
+            <property name="text">
+             <string>Probability:</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QDoubleSpinBox" name="prob_selector">
+            <property name="maximum">
+             <double>1.000000000000000</double>
+            </property>
+            <property name="singleStep">
+             <double>0.100000000000000</double>
+            </property>
+            <property name="value">
+             <double>1.000000000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="label_3">
+            <property name="text">
+             <string>Iterations:</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QSpinBox" name="spinBox_iterations">
+            <property name="value">
+             <number>1</number>
+            </property>
            </widget>
           </item>
           <item>
            <widget class="QPushButton" name="pushButton_runExperiment">
             <property name="text">
              <string>Run experiment</string>
-            </property>
-           </widget>
-          </item>
-         </layout>
-        </widget>
-       </item>
-       <item>
-        <widget class="QGroupBox" name="groupBox_3">
-         <property name="title">
-          <string>Plot options</string>
-         </property>
-         <layout class="QVBoxLayout" name="verticalLayout_6">
-          <item>
-           <widget class="QLineEdit" name="lineEdit_plot_title">
-            <property name="text">
-             <string/>
-            </property>
-            <property name="placeholderText">
-             <string>Title</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QLineEdit" name="lineEdit_x_title">
-            <property name="placeholderText">
-             <string>X axis title</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QLineEdit" name="lineEdit_y_title">
-            <property name="placeholderText">
-             <string>Y axis title</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QLineEdit" name="lineEdit_data_name">
-            <property name="text">
-             <string/>
-            </property>
-            <property name="placeholderText">
-             <string>Data file name</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QLineEdit" name="lineEdit_pdf_name">
-            <property name="placeholderText">
-             <string>PDF name</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="pushButton">
-            <property name="text">
-             <string>Save data</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="pushButton_load_data">
-            <property name="text">
-             <string>Load data</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="pushButton_clear_plot">
-            <property name="text">
-             <string>Clear plot</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="pushButton_save_pdf">
-            <property name="text">
-             <string>Save to PDF</string>
             </property>
            </widget>
           </item>
@@ -270,6 +252,9 @@
        </item>
        <item>
         <widget class="QPushButton" name="pushButton_2">
+         <property name="enabled">
+          <bool>true</bool>
+         </property>
          <property name="text">
           <string>Disconnect all devices</string>
          </property>

@@ -107,13 +107,13 @@ void MQTTServer::updateLogStateChange()
     const QString content = QDateTime::currentDateTime().toString()
                         + QLatin1String(": State Change ")
                         + QString::number(m_client->state());
-    qDebug() << content;
+    //qDebug() << content;
     emit logMessage(content);
 }
 
 void MQTTServer::onAuthenticationRequest(const QMqttAuthenticationProperties &p)
 {
-    qDebug() << "[MQTTServer]: Authentication requested.\n";
+   // qDebug() << "[MQTTServer]: Authentication requested.\n";
 }
 
 void MQTTServer::setIdMqtt(const QString &value)
