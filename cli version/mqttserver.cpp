@@ -16,7 +16,6 @@ MQTTServer::MQTTServer(const QString _host, const quint16 _port, const QString _
         m_client->setPassword(password);
     }
 
-    QObject::connect(m_client, &QMqttClient::authenticationRequested, this, &MQTTServer::onAuthenticationRequest);
     QObject::connect(m_client, &QMqttClient::messageReceived, this, &MQTTServer::onMessageReceived);
     QObject::connect(m_client, &QMqttClient::stateChanged, this, &MQTTServer::updateLogStateChange);
     QObject::connect(m_client, &QMqttClient::disconnected, this, &MQTTServer::brokerDisconnected);
@@ -109,11 +108,6 @@ void MQTTServer::updateLogStateChange()
                         + QString::number(m_client->state());
     //qDebug() << content;
     emit logMessage(content);
-}
-
-void MQTTServer::onAuthenticationRequest(const QMqttAuthenticationProperties &p)
-{
-   // qDebug() << "[MQTTServer]: Authentication requested.\n";
 }
 
 void MQTTServer::setIdMqtt(const QString &value)
