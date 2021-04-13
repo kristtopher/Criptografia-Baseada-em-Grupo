@@ -25,14 +25,19 @@ const QString COMMAND_USER = "dcc075/users/command";
 const QString PARAM_SESSIONKEY = "ERIKA/params/sessionkey";
 const QString SESSION_KEY = "ERIKA/sessionkey";
 
-Trevor::Trevor(const QString host, const quint16 port, const QString username, const QString password)
+Trevor::Trevor(const QString _host, const quint16 _port, const QString _username, const QString _password)
 {
-    this->init(host, port, username, password);
+    this->init(_host, _port, _username, _password);
 }
 
 void Trevor::init(const QString host, const quint16 port, const QString username, const QString password)
 {
+    this->host = host;
+    this->port = port;
+    this->username = username;
+    this->password = password;
     time.start();
+    qDebug() << host << " " << port << " " << username << " " << password;
     if(!username.isEmpty()){
         m_mqtt = new MQTTServer(host, port, username, password);
     }else {

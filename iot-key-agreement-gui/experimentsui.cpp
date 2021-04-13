@@ -42,16 +42,15 @@ ExperimentsUI::~ExperimentsUI()
     delete ui;
 }
 
-void ExperimentsUI::on_consumption_measurement(size_t device_id, size_t n_key, double consumption){
-    std::cout <<"Energy consumption received: " << device_id << " " << n_key << " " << consumption << std::endl;
+void ExperimentsUI::on_consumption_measurement(size_t device_id, double time, double consumption){
     QFile file("Data/energy_consumption_it_"+QString::number(it)+".csv");
     QTextStream writter(&file);
 
     if(energy_data_open && file.open(QIODevice::WriteOnly | QIODevice::Append)){
-        writter << QString::number(device_id) << "," << n_key << "," << QString::number(consumption) << "\n";
+        writter << QString::number(device_id) << "," << QString::number(time) << "," << QString::number(consumption) << "\n";
     }else if(file.open(QIODevice::WriteOnly)){
         writter << "Device ID,Time, Consumption\n";
-        writter << QString::number(device_id) << "," << n_key << "," << QString::number(consumption) << "\n";
+        writter << QString::number(device_id) << "," << QString::number(time) << "," << QString::number(consumption) << "\n";
         energy_data_open = true;
     }
 

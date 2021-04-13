@@ -1,24 +1,25 @@
 #ifndef EXPERIMENTSUI_H
 #define EXPERIMENTSUI_H
 
-#include <QWidget>
-
+#include <qt5/QtCore/qthread.h>
+#include <qt5/QtCore/QObject>
+#include <qt5/QtCore/QString>
+#include <qt5/QtCore/QTimer>
 #include "trevor.h"
 #include "device.h"
 
-namespace Ui {
-class ExperimentsUI;
-}
 
-class ExperimentsUI : public QWidget
+class Experiments : public QObject
 {
     Q_OBJECT
 
 public:
-    explicit ExperimentsUI(Trevor *trevor, QWidget *parent = nullptr);
+    explicit Experiments(QString& host, quint16 port, QString& username, QString& password);
     bool isRunning() { return this->running; }
+    void setRunning() {this->running = true;}
+    Trevor *trevor;
 
-    ~ExperimentsUI();
+    ~Experiments();
 
 private slots:
     void on_pushButton_runExperiment_clicked();
@@ -47,9 +48,10 @@ signals:
     void measurementTypeChanged(const QString &measurement_type);
     void iteration(int it);
     void stopped();
+    void finished();
+    void prepared();
+
 private:
-    Ui::ExperimentsUI *ui;
-    Trevor *trevor;
     QString plot_title;
     size_t n_devices, n_finished = 0;
     QVector<Device *> devices;
